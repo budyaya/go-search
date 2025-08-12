@@ -19,6 +19,8 @@ func main() {
 	{
 		api.POST("/index", handler.CreateIndexHandler)
 		api.POST("/document", handler.AddDocumentHandler)
+		api.PUT("/document", handler.UpdateDocumentHandler)
+		api.DELETE("/document", handler.DeleteDocumentHandler)
 		api.POST("/search", handler.SearchHandler) // 修改为POST方法
 	}
 

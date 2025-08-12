@@ -86,6 +86,33 @@ func AddDocument(indexName string, doc model.Document) error {
 	return index.Index(doc.ID, doc.Fields)
 }
 
+// 更新文档
+func UpdateDocument(indexName string, doc model.Document) error {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	index, exists := indexes[indexName]
+	if !exists {
+		return fmt.Errorf("索引 %s 不存在", indexName)
+	}
+
+	// 使用bleve的Index方法实现更新（已存在的ID会被覆盖）
+	return index.Index(doc.ID, doc.Fields)
+}
+
+// 删除文档
+func DeleteDocument(indexName string, docID string) error {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	index, exists := indexes[indexName]
+	if !exists {
+		return fmt.Errorf("索引 %s 不存在", indexName)
+	}
+
+	return index.Delete(docID)
+}
+
 // 搜索文档 (增加分页参数)
 func Search(indexName string, query string, page, size int) (*bleve.SearchResult, error) {
 	mu.RLock()
