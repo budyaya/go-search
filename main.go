@@ -22,6 +22,7 @@ func main() {
 		api.POST("/index", handler.CreateIndexHandler)
 		api.POST("/index/stats", handler.GetIndexStatisticsHandler) // 获取索引统计信息
 		api.POST("/document", handler.AddDocumentHandler)
+		api.POST("/document/stats", handler.GetDocumentStatisticsHandler)
 		api.PUT("/document", handler.UpdateDocumentHandler)
 		api.DELETE("/document", handler.DeleteDocumentHandler)
 		api.POST("/search", handler.SearchHandler) // 修改为POST方法

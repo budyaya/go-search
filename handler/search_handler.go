@@ -87,6 +87,28 @@ func AddDocumentHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "文档添加成功"})
 }
 
+// 获取文档统计信息请求体
+type GetDocumentStatisticsHandlerRequest struct {
+	IndexName string `json:"index_name" binding:"required"`
+}
+
+// 获取文档统计信息
+func GetDocumentStatisticsHandler(c *gin.Context) {
+	var req GetDocumentStatisticsHandlerRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	stat, err := service.GetTermFrequencyRanking(req.IndexName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, stat)
+}
+
 // 更新文档请求体
 type UpdateDocumentRequest struct {
 	IndexName string                 `json:"index_name" binding:"required"`

@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"sort"
 	"sync"
 
 	"github.com/blevesearch/bleve/v2"
@@ -197,4 +198,57 @@ func GetIndexStatistics(indexName string) (*model.IndexStatistics, error) {
 	}
 
 	return stats, nil
+}
+
+// GetTermFrequencyRanking 返回按频率排序的词条列表（降序）
+func GetTermFrequencyRanking(indexName string) ([]model.TermFrequency, error) {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	idx, exists := indexes[indexName]
+	if !exists {
+		return nil, fmt.Errorf("索引 %s 不存在", indexName)
+	}
+
+	// 获取所有字段
+	fields, err := idx.Fields()
+	if err != nil {
+		return nil, err
+	}
+
+	// 收集所有词条频率
+	termFreq := make(map[string]uint64)
+	for _, field := range fields {
+		dict, err := idx.FieldDict(field)
+		if err != nil {
+			return nil, err
+		}
+		defer dict.Close()
+
+		// 遍历词条
+		for {
+			term, err := dict.Next()
+			if err != nil {
+				return nil, err
+			}
+			if term == nil {
+				break
+			}
+			termFreq[term.Term] += term.Count
+		}
+	}
+
+	// 转换为切片并排序
+	rankings := make([]model.TermFrequency, 0, len(termFreq))
+
+	for term, count := range termFreq {
+		rankings = append(rankings, model.TermFrequency{Term: term, Frequency: count})
+	}
+
+	// 按频率降序排序
+	sort.Slice(rankings, func(i, j int) bool {
+		return rankings[i].Frequency > rankings[j].Frequency
+	})
+
+	return rankings, nil
 }
