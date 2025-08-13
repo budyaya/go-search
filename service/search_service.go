@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"go-search/analysis/jieba"
 	"go-search/model"
 	"log"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/blevesearch/bleve/v2"
+	"github.com/blevesearch/bleve/v2/mapping"
 )
 
 var (
@@ -24,8 +26,8 @@ func IsValidIndexName(name string) bool {
 	return indexNameRegex.MatchString(name)
 }
 
-// 初始化索引 - 先尝试加载已存在索引，不存在则创建新索引
-func InitIndex(indexName string) error {
+// 初始化索引 - 支持字段分词器配置
+func InitIndex(indexName string, fields map[string]string) error {
 
 	// 验证索引名称是否合法
 	if !IsValidIndexName(indexName) {
@@ -48,8 +50,30 @@ func InitIndex(indexName string) error {
 
 	// 如果索引不存在，则创建新索引
 	if err == bleve.ErrorIndexPathDoesNotExist {
-		mapping := bleve.NewIndexMapping()
-		index, err = bleve.New("./data/"+indexName, mapping)
+		indexMapping := bleve.NewIndexMapping()
+
+		// 配置字段分词器
+		for fieldName, analyzer := range fields {
+			var fieldMapping *mapping.FieldMapping
+
+			// 根据配置设置分析器
+			switch analyzer {
+			case "jieba":
+				fieldMapping = bleve.NewTextFieldMapping()
+				fieldMapping.Analyzer = jieba.AnalyzerName
+			case "keyword":
+				fieldMapping = bleve.NewKeywordFieldMapping()
+			case "number":
+				fieldMapping = bleve.NewNumericFieldMapping()
+				log.Printf("number field: %s", fieldName)
+			default:
+				fieldMapping = bleve.NewTextFieldMapping()
+			}
+
+			indexMapping.DefaultMapping.AddFieldMappingsAt(fieldName, fieldMapping)
+		}
+
+		index, err = bleve.New("./data/"+indexName, indexMapping)
 		if err != nil {
 			return fmt.Errorf("创建索引失败: %v", err)
 		}
@@ -72,7 +96,7 @@ func LoadAllIndexes() error {
 	for _, entry := range entries {
 		if entry.IsDir() {
 			// 尝试打开目录作为索引
-			err = InitIndex(entry.Name())
+			err = InitIndex(entry.Name(), nil)
 			if err == nil {
 				log.Printf("成功加载索引: %s", entry.Name())
 			} else {
@@ -135,7 +159,7 @@ func Search(indexName string, query string, page, size int) (*bleve.SearchResult
 		return nil, fmt.Errorf("索引 %s 不存在", indexName)
 	}
 
-	searchQuery := bleve.NewMatchQuery(query)
+	searchQuery := bleve.NewQueryStringQuery(query) // NewMatchQuery
 	searchRequest := bleve.NewSearchRequest(searchQuery)
 
 	// 返回所有字段
@@ -200,7 +224,7 @@ func GetIndexStatistics(indexName string) (*model.IndexStatistics, error) {
 	return stats, nil
 }
 
-// GetTermFrequencyRanking 返回按频率排序的词条列表（降序）
+// 返回按频率排序的词条列表（降序）
 func GetTermFrequencyRanking(indexName string) ([]model.TermFrequency, error) {
 	mu.RLock()
 	defer mu.RUnlock()
@@ -219,6 +243,10 @@ func GetTermFrequencyRanking(indexName string) ([]model.TermFrequency, error) {
 	// 收集所有词条频率
 	termFreq := make(map[string]uint64)
 	for _, field := range fields {
+		if field == "_all" {
+			continue
+		}
+		log.Printf("--------------field: %s", field)
 		dict, err := idx.FieldDict(field)
 		if err != nil {
 			return nil, err
@@ -234,6 +262,7 @@ func GetTermFrequencyRanking(indexName string) ([]model.TermFrequency, error) {
 			if term == nil {
 				break
 			}
+			log.Printf("词条: %s, 频率: %d", term.Term, term.Count)
 			termFreq[term.Term] += term.Count
 		}
 	}

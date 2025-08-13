@@ -78,7 +78,13 @@ go run main.go
 
 ```json
 {
-  "index_name": "products"
+    "index_name": "products",
+    "fields": {
+        "name": "jieba",
+        "description": "standard",
+        "price": "number",
+        "category": "keyword"
+    }
 }
 ```
 

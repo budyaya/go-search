@@ -10,7 +10,8 @@ import (
 
 // 创建索引请求体
 type CreateIndexRequest struct {
-	IndexName string `json:"index_name" binding:"required"`
+	IndexName string            `json:"index_name" binding:"required"`
+	Fields    map[string]string `json:"fields"` // 字段分词器配置
 }
 
 // 添加文档请求体
@@ -36,7 +37,7 @@ func CreateIndexHandler(c *gin.Context) {
 		return
 	}
 
-	if err := service.InitIndex(req.IndexName); err != nil {
+	if err := service.InitIndex(req.IndexName, req.Fields); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
