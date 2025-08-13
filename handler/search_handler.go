@@ -44,6 +44,28 @@ func CreateIndexHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "索引创建成功"})
 }
 
+// 获取索引统计信息请求体
+type GetIndexStatisticsHandlerRequest struct {
+	IndexName string `json:"index_name" binding:"required"`
+}
+
+// 获取索引统计信息
+func GetIndexStatisticsHandler(c *gin.Context) {
+	var req GetIndexStatisticsHandlerRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	stat, err := service.GetIndexStatistics(req.IndexName)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, stat)
+}
+
 // 添加文档
 func AddDocumentHandler(c *gin.Context) {
 	var req AddDocumentRequest

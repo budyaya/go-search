@@ -5,18 +5,32 @@ import (
 	"go-search/model"
 	"log"
 	"os"
+	"regexp"
 	"sync"
 
 	"github.com/blevesearch/bleve/v2"
 )
 
 var (
-	indexes = make(map[string]bleve.Index)
-	mu      sync.RWMutex
+	indexes        = make(map[string]bleve.Index)
+	mu             sync.RWMutex
+	indexNameRegex = regexp.MustCompile(`^[a-zA-Z_.]+$`)
 )
+
+// 验证索引名称是否合法
+func IsValidIndexName(name string) bool {
+	// 验证索引名称只能包含字母、下划线和点
+	return indexNameRegex.MatchString(name)
+}
 
 // 初始化索引 - 先尝试加载已存在索引，不存在则创建新索引
 func InitIndex(indexName string) error {
+
+	// 验证索引名称是否合法
+	if !IsValidIndexName(indexName) {
+		return fmt.Errorf("索引名称不合法")
+	}
+
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -25,7 +39,7 @@ func InitIndex(indexName string) error {
 	}
 
 	// 尝试打开已存在的索引
-	index, err := bleve.Open(indexName)
+	index, err := bleve.Open("./data/" + indexName)
 	if err == nil {
 		indexes[indexName] = index
 		return nil
@@ -34,7 +48,7 @@ func InitIndex(indexName string) error {
 	// 如果索引不存在，则创建新索引
 	if err == bleve.ErrorIndexPathDoesNotExist {
 		mapping := bleve.NewIndexMapping()
-		index, err = bleve.New(indexName, mapping)
+		index, err = bleve.New("./data/"+indexName, mapping)
 		if err != nil {
 			return fmt.Errorf("创建索引失败: %v", err)
 		}
@@ -47,11 +61,9 @@ func InitIndex(indexName string) error {
 
 // 加载所有已存在的索引
 func LoadAllIndexes() error {
-	mu.Lock()
-	defer mu.Unlock()
 
 	// 读取当前目录下的所有项目
-	entries, err := os.ReadDir(".")
+	entries, err := os.ReadDir("./data")
 	if err != nil {
 		return fmt.Errorf("读取目录失败: %v", err)
 	}
@@ -59,11 +71,10 @@ func LoadAllIndexes() error {
 	for _, entry := range entries {
 		if entry.IsDir() {
 			// 尝试打开目录作为索引
-			index, err := bleve.Open(entry.Name())
+			err = InitIndex(entry.Name())
 			if err == nil {
-				indexes[entry.Name()] = index
 				log.Printf("成功加载索引: %s", entry.Name())
-			} else if err != bleve.ErrorIndexPathDoesNotExist {
+			} else {
 				// 仅记录非不存在错误的警告
 				log.Printf("警告: 无法打开目录 %s 作为索引: %v", entry.Name(), err)
 			}
@@ -126,10 +137,64 @@ func Search(indexName string, query string, page, size int) (*bleve.SearchResult
 	searchQuery := bleve.NewMatchQuery(query)
 	searchRequest := bleve.NewSearchRequest(searchQuery)
 
+	// 返回所有字段
+	searchRequest.Fields = []string{"*"}
+
 	// 设置分页
 	from := (page - 1) * size
 	searchRequest.From = from
 	searchRequest.Size = size
 
 	return index.Search(searchRequest)
+}
+
+// 获取索引统计信息
+func GetIndexStatistics(indexName string) (*model.IndexStatistics, error) {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	index, exists := indexes[indexName]
+	if !exists {
+		return nil, fmt.Errorf("索引 %s 不存在", indexName)
+	}
+
+	stats := &model.IndexStatistics{
+		FieldFreq: make(map[string]int),
+	}
+
+	var err error
+	// 1. 获取文档数量
+	stats.DocCount, err = index.DocCount()
+	if err != nil {
+		return nil, fmt.Errorf("获取文档数量失败: %v", err)
+	}
+
+	// 2. 获取索引大小
+	statsMap := index.StatsMap()
+	if indexStats, ok := statsMap["index"].(map[string]interface{}); ok {
+		if size, ok := indexStats["size_in_bytes"].(uint64); ok {
+			stats.IndexSize = size
+		}
+	}
+
+	// 3. 获取字段数量及频率统计
+	fields, err := index.Fields()
+	if err != nil {
+		return nil, fmt.Errorf("获取字段列表失败: %v", err)
+	}
+	stats.FieldCount = len(fields)
+
+	// 4. 统计每个字段的频率
+	for _, field := range fields {
+		dict, err := index.FieldDict(field)
+		if err != nil {
+			return nil, fmt.Errorf("获取字段词典失败: %v", err)
+		}
+		defer dict.Close()
+
+		// 累加字段基数(不同词条数量)
+		stats.FieldFreq[field] = dict.Cardinality()
+	}
+
+	return stats, nil
 }
