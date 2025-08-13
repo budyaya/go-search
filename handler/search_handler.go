@@ -23,10 +23,14 @@ type AddDocumentRequest struct {
 
 // 搜索请求体 (新增)
 type SearchRequest struct {
-	IndexName string `json:"index_name" binding:"required"`
-	Query     string `json:"query" binding:"required"`
-	Page      int    `json:"page,omitempty"` // 可选分页参数
-	Size      int    `json:"size,omitempty"` // 可选每页数量
+	IndexName string  `json:"index_name" binding:"required"`
+	Type      int     `json:"type" binding:"required"` // 1: 普通搜索, 2: 范围查询
+	Query     string  `json:"query" binding:"required_if=Type 1"`
+	Field     string  `json:"field" binding:"required_if=Type 2"`
+	Start     float64 `json:"start" binding:"required_if=Type 2"`
+	End       float64 `json:"end" binding:"required_if=Type 2"`
+	Page      int     `json:"page,omitempty"` // 可选分页参数
+	Size      int     `json:"size,omitempty"` // 可选每页数量
 }
 
 // 创建索引
@@ -174,6 +178,22 @@ func SearchHandler(c *gin.Context) {
 	}
 	if req.Size <= 0 {
 		req.Size = 10
+	}
+
+	if req.Field == "price" && req.Start != req.End {
+		result, err := service.RangeSearch(req.IndexName, req.Field, req.Start, req.End, req.Page, req.Size)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"total": result.Total,
+			"page":  req.Page,
+			"size":  req.Size,
+			"hits":  result.Hits,
+		})
+		return
 	}
 
 	result, err := service.Search(req.IndexName, req.Query, req.Page, req.Size)

@@ -140,7 +140,20 @@ go run main.go
 ```json
 {
   "index_name": "products",
+  "type": 1,
   "query": "iPhone",
+  "page": 1,
+  "size": 10
+}
+```
+
+```json
+{
+  "index_name": "products",
+  "type": 2,
+  "field": "price",
+  "start": 5999,
+  "end": 5999,
   "page": 1,
   "size": 10
 }

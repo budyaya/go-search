@@ -173,6 +173,30 @@ func Search(indexName string, query string, page, size int) (*bleve.SearchResult
 	return index.Search(searchRequest)
 }
 
+// 使用范围查询文档
+func RangeSearch(indexName string, field string, start, end float64, page, size int) (*bleve.SearchResult, error) {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	index, exists := indexes[indexName]
+	if !exists {
+		return nil, fmt.Errorf("索引 %s 不存在", indexName)
+	}
+	// max := 50.0
+	// maxInclusive := true
+	// q := NewNumericRangeInclusiveQuery(nil, &max, nil, &maxInclusive)
+	// q.SetField("price")
+	rangeQuery := bleve.NewNumericRangeQuery(&start, &end)
+	rangeQuery.SetField(field)
+
+	searchRequest := bleve.NewSearchRequest(rangeQuery)
+	searchRequest.Fields = []string{"*"}
+	searchRequest.From = (page - 1) * size
+	searchRequest.Size = size
+
+	return index.Search(searchRequest)
+}
+
 // 获取索引统计信息
 func GetIndexStatistics(indexName string) (*model.IndexStatistics, error) {
 	mu.RLock()
