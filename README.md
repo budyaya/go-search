@@ -142,8 +142,10 @@ go run main.go
   "index_name": "products",
   "type": 1,
   "query": "iPhone",
+  "sort_by": "+price",
   "page": 1,
-  "size": 10
+  "size": 10,
+
 }
 ```
 
@@ -152,6 +154,7 @@ go run main.go
   "index_name": "products",
   "type": 2,
   "field": "price",
+  "sort_by": "-price",
   "start": 5999,
   "end": 5999,
   "page": 1,
