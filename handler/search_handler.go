@@ -30,8 +30,9 @@ type SearchRequest struct {
 	Field     string  `json:"field" binding:"required_if=Type 2"`
 	Start     float64 `json:"start" binding:"required_if=Type 2"`
 	End       float64 `json:"end" binding:"required_if=Type 2"`
-	Page      int     `json:"page,omitempty"` // 可选分页参数
-	Size      int     `json:"size,omitempty"` // 可选每页数量
+	Page      int     `json:"page,omitempty"`    // 可选分页参数
+	Size      int     `json:"size,omitempty"`    // 可选每页数量
+	SortBy    string  `json:"sort_by,omitempty"` // 可选排序字段
 }
 
 // 创建索引
@@ -182,7 +183,7 @@ func SearchHandler(c *gin.Context) {
 	}
 
 	if req.Field == "price" && req.Start != req.End {
-		result, err := service.RangeSearch(req.IndexName, req.Field, req.Start, req.End, req.Page, req.Size)
+		result, err := service.RangeSearch(req.IndexName, req.Field, req.Start, req.End, req.Page, req.Size, req.SortBy)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -197,7 +198,7 @@ func SearchHandler(c *gin.Context) {
 		return
 	}
 
-	result, err := service.Search(req.IndexName, req.Query, req.Page, req.Size)
+	result, err := service.Search(req.IndexName, req.Query, req.Page, req.Size, req.SortBy)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

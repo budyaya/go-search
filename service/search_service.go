@@ -151,7 +151,7 @@ func DeleteDocument(indexName string, docID string) error {
 }
 
 // 搜索文档 (增加分页参数)
-func Search(indexName string, query string, page, size int) (*bleve.SearchResult, error) {
+func Search(indexName string, query string, page, size int, sortBy string) (*bleve.SearchResult, error) {
 	mu.RLock()
 	defer mu.RUnlock()
 
@@ -162,6 +162,10 @@ func Search(indexName string, query string, page, size int) (*bleve.SearchResult
 
 	searchQuery := bleve.NewQueryStringQuery(query) // NewMatchQuery
 	searchRequest := bleve.NewSearchRequest(searchQuery)
+	if sortBy != "" {
+		// 设置排序
+		searchRequest.SortBy([]string{sortBy})
+	}
 
 	// 返回所有字段
 	searchRequest.Fields = []string{"*"}
@@ -175,7 +179,7 @@ func Search(indexName string, query string, page, size int) (*bleve.SearchResult
 }
 
 // 使用范围查询文档
-func RangeSearch(indexName string, field string, start, end float64, page, size int) (*bleve.SearchResult, error) {
+func RangeSearch(indexName string, field string, start, end float64, page, size int, sortBy string) (*bleve.SearchResult, error) {
 	mu.RLock()
 	defer mu.RUnlock()
 
@@ -194,6 +198,10 @@ func RangeSearch(indexName string, field string, start, end float64, page, size 
 	searchRequest.Fields = []string{"*"}
 	searchRequest.From = (page - 1) * size
 	searchRequest.Size = size
+	if sortBy != "" {
+		// 设置排序
+		searchRequest.SortBy([]string{sortBy})
+	}
 
 	return index.Search(searchRequest)
 }

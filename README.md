@@ -186,6 +186,16 @@ go run main.go
         "price": 6999,
         "category": "智能手机"
       }
+    },
+    {
+      "id": "3",
+      "score": 0.75,
+      "fields": {
+        "name": "iPhone 14 Pro",
+        "description": "Apple iPhone 14 Pro 128GB 石墨色",
+        "price": 8999,
+        "category": "智能手机"
+      }
     }
   ]
 }
