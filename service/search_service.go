@@ -5,6 +5,7 @@ import (
 	"go-search/analysis/jieba"
 	"go-search/model"
 	"log"
+	"math"
 	"os"
 	"regexp"
 	"sort"
@@ -264,13 +265,21 @@ func GetTermFrequencyRanking(indexName string) ([]model.TermFrequency, error) {
 		return nil, err
 	}
 
+	// 获取索引映射以检查字段类型
+	mapping := idx.Mapping()
+
 	// 收集所有词条频率
 	termFreq := make(map[string]uint64)
 	for _, field := range fields {
 		if field == "_all" {
 			continue
 		}
-		log.Printf("--------------field: %s", field)
+
+		fieldMapping := mapping.FieldMappingForPath(field)
+		if fieldMapping.Type == "number" {
+			continue
+		}
+
 		dict, err := idx.FieldDict(field)
 		if err != nil {
 			return nil, err
@@ -286,7 +295,6 @@ func GetTermFrequencyRanking(indexName string) ([]model.TermFrequency, error) {
 			if term == nil {
 				break
 			}
-			log.Printf("词条: %s, 频率: %d", term.Term, term.Count)
 			termFreq[term.Term] += term.Count
 		}
 	}
@@ -304,4 +312,109 @@ func GetTermFrequencyRanking(indexName string) ([]model.TermFrequency, error) {
 	})
 
 	return rankings, nil
+}
+
+// 统计数字字段的范围分布
+func GetNumberFieldRangeDistribution(indexName, fieldName string, ranges [][2]float64) (*model.RangeDistribution, error) {
+	mu.RLock()
+	defer mu.RUnlock()
+
+	index, exists := indexes[indexName]
+	if !exists {
+		return nil, fmt.Errorf("索引 %s 不存在", indexName)
+	}
+
+	// 验证字段是否为数字类型
+	mapping := index.Mapping()
+	fieldMapping := mapping.FieldMappingForPath(fieldName)
+	if fieldMapping.Type != "number" {
+		return nil, fmt.Errorf("字段 %s 不是数字类型", fieldName)
+	}
+
+	// 创建匹配所有文档的查询
+	query := bleve.NewMatchAllQuery()
+	searchRequest := bleve.NewSearchRequest(query)
+	searchRequest.Fields = []string{fieldName}
+	searchRequest.Size = 10000 // 适当调整批量大小
+
+	// 执行查询
+	results, err := index.Search(searchRequest)
+	if err != nil {
+		return nil, fmt.Errorf("查询失败: %v", err)
+	}
+
+	// 初始化统计结果
+	dist := &model.RangeDistribution{
+		FieldName: fieldName,
+		Ranges:    make(map[string]int),
+		Min:       math.Inf(1),
+		Max:       math.Inf(-1),
+	}
+
+	var sum float64
+	var count int
+
+	// 初始化范围计数器
+	for _, r := range ranges {
+		key := fmt.Sprintf("%.2f-%.2f", r[0], r[1])
+		dist.Ranges[key] = 0
+	}
+
+	// 处理查询结果
+	for _, hit := range results.Hits {
+		// 从搜索结果中提取字段值
+		fieldValue, exists := hit.Fields[fieldName]
+		if !exists {
+			continue
+		}
+
+		// 转换为数字类型
+		value, err := convertToFloat64(fieldValue)
+		if err != nil {
+			continue
+		}
+
+		// 更新统计值
+		count++
+		sum += value
+		if value < dist.Min {
+			dist.Min = value
+		}
+		if value > dist.Max {
+			dist.Max = value
+		}
+
+		// 归类到对应的范围
+		for _, r := range ranges {
+			key := fmt.Sprintf("%.2f-%.2f", r[0], r[1])
+			if value >= r[0] && value <= r[1] {
+				dist.Ranges[key]++
+				break
+			}
+		}
+	}
+
+	// 计算平均值
+	if count > 0 {
+		dist.Avg = sum / float64(count)
+		dist.Count = count
+	}
+
+	return dist, nil
+}
+
+// 辅助函数：将interface{}转换为float64
+func convertToFloat64(v interface{}) (float64, error) {
+	switch val := v.(type) {
+	case float64:
+		return val, nil
+	case int:
+		return float64(val), nil
+	case int64:
+		return float64(val), nil
+	case float32:
+		return float64(val), nil
+	default:
+		return 0, fmt.Errorf("无法转换为数字类型: %T", v)
+	}
 }

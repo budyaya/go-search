@@ -3,6 +3,7 @@ package handler
 import (
 	"go-search/model"
 	"go-search/service"
+	"math"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -208,4 +209,33 @@ func SearchHandler(c *gin.Context) {
 		"size":  req.Size,
 		"hits":  result.Hits,
 	})
+}
+
+// 获取统计指定数字字段的范围分布请求体
+type GetNumberFieldRangeDistributionHandlerRequest struct {
+	IndexName string       `json:"index_name" binding:"required"`
+	FieldName string       `json:"field_name" binding:"required"`
+	Ranges    [][2]float64 `json:"ranges" binding:"required"`
+}
+
+// 获取统计指定数字字段的范围分布
+func GetNumberFieldRangeDistributionHandler(c *gin.Context) {
+	var req GetNumberFieldRangeDistributionHandlerRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	ranges := req.Ranges
+	// 补上一个无穷大的范围
+	ranges = append(ranges, [2]float64{ranges[len(ranges)-1][1], math.Inf(1)})
+	// 补上一个无穷小的范围
+	ranges = append([][2]float64{{math.Inf(-1), ranges[0][0]}}, ranges...)
+	dist, err := service.GetNumberFieldRangeDistribution("products", "price", ranges)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, dist)
 }

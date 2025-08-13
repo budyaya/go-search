@@ -25,7 +25,8 @@ func main() {
 		api.POST("/document/stats", handler.GetDocumentStatisticsHandler)
 		api.PUT("/document", handler.UpdateDocumentHandler)
 		api.DELETE("/document", handler.DeleteDocumentHandler)
-		api.POST("/search", handler.SearchHandler) // 修改为POST方法
+		api.POST("/search", handler.SearchHandler)                                // 修改为POST方法
+		api.POST("/number/stats", handler.GetNumberFieldRangeDistributionHandler) // 获取数字字段范围分布
 	}
 
 	// 启动服务器
